@@ -1,0 +1,22 @@
+{
+  "name": "unodns",
+  "version": "0.0.1",
+  "main": "index.js",
+  "author": "ruiming",
+  "license": "MIT",
+  "scripts": {
+    "start": "npm run build:live",
+    "build:live": "nodemon --exec ./node_modules/.bin/ts-node -- ./src/index.ts"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "dns-packet": "^1.1.1",
+    "lru-cache": "^4.0.2",
+    "pcap": "github:mranney/node_pcap"
+  },
+  "devDependencies": {
+    "nodemon": "^1.11.0",
+    "ts-node": "^3.0.4",
+    "typescript": "^2.3.2"
+  }
+}
