@@ -1,4 +1,5 @@
 /// <reference path="../typings/globals/node/index.d.ts" />
+/// <reference path="../typings/globals/lru-cache/index.d.ts" />
 /// <reference path="../typings/modules/bluebird/index.d.ts" />
 /// <reference path="./dns.d.ts" />
 import * as dns from 'dns'
@@ -7,6 +8,7 @@ import * as fs from 'fs'
 import * as dgram from 'dgram'
 import * as packet from 'dns-packet'
 import * as pcap from 'pcap'
+import * as LRU from 'lru-cache'
 import { StringDecoder } from 'string_decoder'
 
 import pullutionIpList from './pollution'
@@ -14,7 +16,9 @@ import pullutionIpList from './pollution'
 interface UnoDnsConfig {
   pullutionIpList?: string[]
   dnsList?: string[]
-  port?: number
+  port?: number,
+  maxCacheLine?: number,
+  maxCacheAge?: number
 }
 
 interface Answer {
@@ -46,17 +50,15 @@ interface AddressInfo {
   port: number
 }
 
-interface dnsCacheList {
-  [address: string] : Buffer
-}
-
 class Dns {
   private server: dgram.Socket
-  private dnsCache: dnsCacheList
+  private dnsCache: LRU.Cache<Buffer> // DNS 缓存
   private dict: AddressInfo[]
-  private pullutionIpList: string[]
-  private dnsList: string[]
-  private port: number
+  private pullutionIpList: string[]   // 投毒列表
+  private dnsList: string[]           // DNS 上游服务器列表
+  private port: number                // DNS 运行端口
+  private maxCacheLine: number        // DNS 最长缓存条数
+  private maxCacheAge: number         // DNS 缓存最长时间
   
 
   constructor (config: UnoDnsConfig) {
@@ -65,7 +67,10 @@ class Dns {
     this.port = config.port
 
     this.dict = []
-    this.dnsCache = {}
+    this.dnsCache = LRU<Buffer>({
+      max: config.maxCacheLine || 500,
+      maxAge: config.maxCacheAge || 7200
+    })
 
     this.setDnsServer(this.dnsList)
     this.server = dgram.createSocket('udp4')
@@ -81,7 +86,7 @@ class Dns {
    * @param answers 
    */
   public setCache (address: string, message: Buffer) {
-    this.dnsCache[address] = message
+    this.dnsCache.set(address, message)
   }
 
   /**
@@ -119,11 +124,11 @@ class Dns {
   private onmessage (message: Buffer, rinfo: dgram.AddressInfo) {
     const data: Packet = packet.decode(message)
     if (data.type === 'query') {
-      if (this.dnsCache[data.questions[0].name]) {
+      if (this.dnsCache.has(data.questions[0].name)) {
         if (data.questions.length > 1) {
           console.log(data.questions)
         }
-        const message = packet.decode(this.dnsCache[data.questions[0].name])
+        const message = packet.decode(this.dnsCache.get(data.questions[0].name))
         message.id = data.id
         message.questions = data.questions
         console.log('使用缓存')
@@ -149,6 +154,10 @@ class Dns {
     console.log(err)
   }
 
+  /**
+   * 查看响应是否是被污染的
+   * @param answers 
+   */
   private isPolluted (answers) {
     for (const answer of answers) {
       if (this.pullutionIpList.includes(answer.data)) {

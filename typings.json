@@ -3,6 +3,7 @@
     "bluebird": "registry:dt/bluebird#3.5.0+20170323165310"
   },
   "globalDependencies": {
+    "lru-cache": "registry:dt/lru-cache#4.0.1+20160812224217",
     "node": "registry:dt/node#7.0.0+20170322231424"
   }
 }
