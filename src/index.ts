@@ -64,7 +64,7 @@ class Dns {
     this.dict = []
     this.dnsCache = LRU<Buffer>({
       max: config.maxCacheLine || 500,
-      maxAge: config.maxCacheAge || 7200
+      maxAge: config.maxCacheAge || 1000 * 60 * 60 * 2
     })
 
     this.setDnsServer(this.dnsList)
@@ -135,11 +135,11 @@ class Dns {
   private onmessage (message: Buffer, rinfo: dgram.AddressInfo) {
     const data: Packet = packet.decode(message)
     if (data.type === 'query') {
-      if (this.dnsCache.has(data.questions[0].name)) {
+      if (this.dnsCache.has(data.questions[0].name + data.questions[0].type)) {
         if (data.questions.length > 1) {
           console.log(data.questions)
         }
-        const msg = packet.decode(this.dnsCache.get(data.questions[0].name))
+        const msg = packet.decode(this.dnsCache.get(data.questions[0].name + data.questions[0].type))
         msg.id = data.id
         msg.questions = data.questions
         console.log('使用缓存')
@@ -152,7 +152,7 @@ class Dns {
     } else {
       if (!this.isPolluted(data.answers)) {
         const origin = this.dict[data.id]
-        this.setCache(data.questions[0].name, message)
+        this.setCache(data.questions[0].name + data.questions[0].type, message)
         this.server.send(message, 0, message.length, origin.port, origin.address)
         // if (Math.random() < 0.1) console.log(data)
       } else {
