@@ -11,6 +11,11 @@
         "lib": ["es2015", "es2016", "es2017"],
         "watch": true
     },
+    "files": [
+        "./typings/globals/lru-cache/index.d.ts",
+        "./typings/globals/node/index.d.ts",
+        "./typings/modules/bluebird/index.d.ts"
+    ],
     "include": [
         "./src/**/*"
     ],
