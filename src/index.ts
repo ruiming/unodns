@@ -1,14 +1,10 @@
-/// <reference path="../typings/globals/node/index.d.ts" />
-/// <reference path="../typings/globals/lru-cache/index.d.ts" />
-/// <reference path="../typings/modules/bluebird/index.d.ts" />
-/// <reference path="./dns.d.ts" />
+import * as dgram from 'dgram'
 import * as dns from 'dns'
+import * as packet from 'dns-packet'
 import * as event from 'events'
 import * as fs from 'fs'
-import * as dgram from 'dgram'
-import * as packet from 'dns-packet'
-import * as pcap from 'pcap'
 import * as LRU from 'lru-cache'
+import * as pcap from 'pcap'
 import { StringDecoder } from 'string_decoder'
 
 import pullutionIpList from './pollution'
@@ -22,26 +18,26 @@ interface UnoDnsConfig {
 }
 
 interface Answer {
-    name: string,
-    type: string,
-    class: number,
-    ttl: number,
-    flush: boolean,
-    data: string
+  name: string,
+  type: string,
+  class: number,
+  ttl: number,
+  flush: boolean,
+  data: string
 }
 
 interface Packet {
   id: number
   type: string
   flags: number,
-  questions: {
+  questions: Array<{
     name: string,
     type: string,
     class: number
-  }[]
+  }>
   answers: Answer[]
-  authorities: {}[]
-  additionals: {}[]
+  authorities: Array<{}>
+  additionals: Array<{}>
 }
 
 interface AddressInfo {
@@ -59,7 +55,6 @@ class Dns {
   private port: number                // DNS 运行端口
   private maxCacheLine: number        // DNS 最长缓存条数
   private maxCacheAge: number         // DNS 缓存最长时间
-  
 
   constructor (config: UnoDnsConfig) {
     this.pullutionIpList = config.pullutionIpList || pullutionIpList
@@ -82,8 +77,8 @@ class Dns {
 
   /**
    * 设置 DNS 缓存
-   * @param address 
-   * @param answers 
+   * @param address
+   * @param answers
    */
   public setCache (address: string, message: Buffer) {
     this.dnsCache.set(address, message)
@@ -108,6 +103,22 @@ class Dns {
   }
 
   /**
+   * 测试
+   */
+  public ping () {
+    const buf = packet.encode({
+      flags: packet.RECURSION_DESIRED,
+      id: 1,
+      questions: [{
+        name: 'www.google.com',
+        type: 'A'
+      }],
+      type: 'query'
+    })
+    this.server.send(buf, 0, buf.length, this.port, '127.0.0.1')
+  }
+
+  /**
    * listening 事件触发处理
    */
   private onlisten () {
@@ -118,8 +129,8 @@ class Dns {
   /**
    * message 事件触发处理
    * TODO: 不解析 Buffer
-   * @param message 
-   * @param rinfo 
+   * @param message
+   * @param rinfo
    */
   private onmessage (message: Buffer, rinfo: dgram.AddressInfo) {
     const data: Packet = packet.decode(message)
@@ -128,11 +139,11 @@ class Dns {
         if (data.questions.length > 1) {
           console.log(data.questions)
         }
-        const message = packet.decode(this.dnsCache.get(data.questions[0].name))
-        message.id = data.id
-        message.questions = data.questions
+        const msg = packet.decode(this.dnsCache.get(data.questions[0].name))
+        msg.id = data.id
+        msg.questions = data.questions
         console.log('使用缓存')
-        this.server.send(packet.encode(message), 0, packet.encodingLength(message), rinfo.port, rinfo.address)
+        this.server.send(packet.encode(msg), 0, packet.encodingLength(msg), rinfo.port, rinfo.address)
       } else {
         this.dict[data.id] = rinfo
         // data.questions.forEach(question => question.name = this.confuseAddress(question.name))
@@ -156,7 +167,7 @@ class Dns {
 
   /**
    * 查看响应是否是被污染的
-   * @param answers 
+   * @param answers
    */
   private isPolluted (answers) {
     for (const answer of answers) {
@@ -170,26 +181,9 @@ class Dns {
   /**
    * 域名混淆处理
    */
-  private confuseAddress (address: string) : string {
-    return address.split('').map(c => Math.random() > 0.5 ? c.toUpperCase() : c.toLowerCase()).join('')
+  private confuseAddress (address: string): string {
+    return address.split('').map((c) => Math.random() > 0.5 ? c.toUpperCase() : c.toLowerCase()).join('')
   }
-
-  /**
-   * 测试
-   */
-  public ping () {
-    const buf = packet.encode({
-      type: 'query',
-      id: 1,
-      flags: packet.RECURSION_DESIRED,
-      questions: [{
-        type: 'A',
-        name: 'www.google.com'
-      }]
-    })
-    this.server.send(buf, 0, buf.length, this.port, '127.0.0.1')
-  }
-
 }
 
 const test = new Dns({
