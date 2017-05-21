@@ -146,13 +146,13 @@ class Dns {
         this.server.send(packet.encode(msg), 0, packet.encodingLength(msg), rinfo.port, rinfo.address)
       } else {
         this.dict[data.id] = rinfo
-        // data.questions.forEach(question => question.name = this.confuseAddress(question.name))
+        data.questions.forEach(question => question.name = this.confuseAddress(question.name))
         this.server.send(packet.encode(data), 0, packet.encodingLength(data), 53, this.dnsList[0])
       }
     } else {
       if (!this.isPolluted(data.answers)) {
         const origin = this.dict[data.id]
-        this.setCache(data.questions[0].name + data.questions[0].type, message)
+        this.setCache(data.questions[0].name.toLocaleLowerCase() + data.questions[0].type, message)
         this.server.send(message, 0, message.length, origin.port, origin.address)
         // if (Math.random() < 0.1) console.log(data)
       } else {
